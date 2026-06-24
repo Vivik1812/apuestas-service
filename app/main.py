@@ -13,6 +13,7 @@ Prefijo de rutas: /api/apuestas
 """
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -20,12 +21,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .auth import requiere_admin, usuario_actual
-from .db import conexion, dict_cursor, esperar_bd, init_schema, sembrar_eventos
+from .db import conexion, dict_cursor, esperar_bd, init_schema, sembrar_eventos, ping
 from .simulacion import simular_partido
 
 SELECCIONES = {"local", "empate", "visita"}
 CUOTA_COL = {"local": "cuota_local", "empate": "cuota_empate", "visita": "cuota_visita"}
-
+INICIO = time.time()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,11 +62,18 @@ class ResolverRequest(BaseModel):
     resultado: str = Field(description="local | empate | visita")
 
 
-# TODO (alumno): implementar las rutas de salud que usará Kubernetes:
-#   - liveness: ¿el proceso está vivo? (respuesta simple).
-#   - readiness: ¿está listo para recibir tráfico? Debe verificar la BD.
-# Luego configurar livenessProbe/readinessProbe en el Deployment de EKS.
+@app.get("/livez")
+def livez():
+    """Liveness: el proceso esta vivo. NO depende de la BD ni de nadie externo."""
+    return {"alive": True, "uptime_segundos": round(time.time() - INICIO, 1)}
 
+
+@app.get("/readyz")
+def readyz():
+    """Readiness: 200 si Postgres responde, 503 si no."""
+    if not ping():
+        raise HTTPException(status_code=503, detail={"ready": False, "db": "sin_conexion"})
+    return {"ready": True, "db": "ok", "service": "apuestas-service"}
 
 @app.get("/api/apuestas/eventos")
 def listar_eventos():
