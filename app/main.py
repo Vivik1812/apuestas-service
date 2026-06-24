@@ -62,13 +62,13 @@ class ResolverRequest(BaseModel):
     resultado: str = Field(description="local | empate | visita")
 
 
-@app.get("/livez")
+@app.get("/live")
 def livez():
     """Liveness: el proceso esta vivo. NO depende de la BD ni de nadie externo."""
     return {"alive": True, "uptime_segundos": round(time.time() - INICIO, 1)}
 
 
-@app.get("/readyz")
+@app.get("/ready")
 def readyz():
     """Readiness: 200 si Postgres responde, 503 si no."""
     if not ping():
